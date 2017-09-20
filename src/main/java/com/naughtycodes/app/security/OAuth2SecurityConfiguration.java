@@ -41,6 +41,40 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 		
     }
 
+	
+//-----------------------------------------------------------------------------	
+	@Bean
+	@Override
+	protected AuthenticationManager authenticationManager() throws Exception {
+		final List<AuthenticationProvider> providers = new ArrayList<>(1);
+		providers.add(preauthAuthProvider());
+		return new ProviderManager(providers);
+	}
+	
+	@Bean(name = "siteminderFilter")
+	public RequestHeaderAuthenticationFilter siteminderFilter() throws Exception {
+		RequestHeaderAuthenticationFilter requestHeaderAuthenticationFilter = new RequestHeaderAuthenticationFilter();
+		requestHeaderAuthenticationFilter.setPrincipalRequestHeader("DBA_USER");
+		requestHeaderAuthenticationFilter.setAuthenticationManager(authenticationManager());
+		return requestHeaderAuthenticationFilter;
+	}
+ 
+	@Bean(name = "preAuthProvider")
+	PreAuthenticatedAuthenticationProvider preauthAuthProvider() throws Exception {
+		PreAuthenticatedAuthenticationProvider provider = new PreAuthenticatedAuthenticationProvider();
+		provider.setPreAuthenticatedUserDetailsService(userDetailsServiceWrapper());
+		return provider;
+	}
+	
+	@Bean
+	UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> userDetailsServiceWrapper() throws Exception {
+		UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> wrapper = new UserDetailsByNameServiceWrapper<>();
+		wrapper.setUserDetailsService(customUserDetailsService);
+		return wrapper;
+	}
+
+//-----------------------------------------------------------------------------
+	
     @Override
     protected void configure(HttpSecurity http) throws Exception {
 
@@ -56,6 +90,7 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 	  	.authorizeRequests()
 	  	.antMatchers("/log").hasAuthority("ADMIN")
 	  	.antMatchers("/oauth/token").permitAll();
+	    http.addFilterAfter(siteminderFilter(), RequestHeaderAuthenticationFilter.class).authorizeRequests().antMatchers("/").permitAll().anyRequest().authenticated().antMatchers("/log").hasAuthority("ROLE_ADMIN");
 		
 //  	  http.authorizeRequests()
 //		  .antMatchers("/", "/home").permitAll()
