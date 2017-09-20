@@ -1,14 +1,21 @@
 package com.naughtycodes.app.security;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper;
 import org.springframework.security.oauth2.provider.ClientDetailsService;
 import org.springframework.security.oauth2.provider.approval.ApprovalStore;
 import org.springframework.security.oauth2.provider.approval.TokenApprovalStore;
@@ -16,6 +23,9 @@ import org.springframework.security.oauth2.provider.approval.TokenStoreUserAppro
 import org.springframework.security.oauth2.provider.request.DefaultOAuth2RequestFactory;
 import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
+import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
+import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
+import org.springframework.security.web.authentication.preauth.RequestHeaderAuthenticationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 import com.naughtycodes.app.configuration.SpringFilter;
@@ -37,19 +47,21 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 		System.out.println("call-->> globalUserDetails");
 //		customUserDetailsService = new CustomUserDetailsService();
 		auth.inMemoryAuthentication().withUser("admin").password("pwd").roles("ADMIN");
-		auth.userDetailsService(customUserDetailsService);
+//		auth.userDetailsService(customUserDetailsService);
+		auth.authenticationProvider(preauthAuthProvider());
 		
+				
     }
-
 	
 //-----------------------------------------------------------------------------	
-	@Bean
-	@Override
-	protected AuthenticationManager authenticationManager() throws Exception {
-		final List<AuthenticationProvider> providers = new ArrayList<>(1);
-		providers.add(preauthAuthProvider());
-		return new ProviderManager(providers);
-	}
+//	//@Qualifier(value="authenticationManagerBean")
+//	@Override
+//	//@Order(2)
+//	protected AuthenticationManager authenticationManager() throws Exception {
+//		final List<AuthenticationProvider> providers = new ArrayList<>(1);
+//		providers.add(preauthAuthProvider());
+//		return new ProviderManager(providers);
+//	}
 	
 	@Bean(name = "siteminderFilter")
 	public RequestHeaderAuthenticationFilter siteminderFilter() throws Exception {
@@ -70,8 +82,10 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 	UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> userDetailsServiceWrapper() throws Exception {
 		UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> wrapper = new UserDetailsByNameServiceWrapper<>();
 		wrapper.setUserDetailsService(customUserDetailsService);
+		
 		return wrapper;
 	}
+ 
 
 //-----------------------------------------------------------------------------
 	
@@ -80,17 +94,17 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
 //      http.addFilterBefore(new SpringFilter(), BasicAuthenticationFilter.class);
 //      http.authorizeRequests()
-//        	.antMatchers("/log").hasAuthority("ROLE_ADMIN")
+//        	.antMatchers("/**").hasAuthority("ROLE_ADMIN")
 //    	.and().authorizeRequests()
 //    		.anyRequest().denyAll();
+      
+http.addFilterAfter(siteminderFilter(), RequestHeaderAuthenticationFilter.class).authorizeRequests().antMatchers("/").permitAll().anyRequest().authenticated().antMatchers("/log").hasAuthority("ROLE_ADMIN");      
 
   	  http
 		.csrf().disable()
 		.anonymous().disable()
 	  	.authorizeRequests()
-	  	.antMatchers("/log").hasAuthority("ADMIN")
 	  	.antMatchers("/oauth/token").permitAll();
-	    http.addFilterAfter(siteminderFilter(), RequestHeaderAuthenticationFilter.class).authorizeRequests().antMatchers("/").permitAll().anyRequest().authenticated().antMatchers("/log").hasAuthority("ROLE_ADMIN");
 		
 //  	  http.authorizeRequests()
 //		  .antMatchers("/", "/home").permitAll()
