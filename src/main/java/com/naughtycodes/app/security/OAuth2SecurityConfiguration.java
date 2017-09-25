@@ -1,16 +1,9 @@
 package com.naughtycodes.app.security;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,14 +19,10 @@ import org.springframework.security.oauth2.provider.token.store.InMemoryTokenSto
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.security.web.authentication.preauth.RequestHeaderAuthenticationFilter;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
-
-import com.naughtycodes.app.configuration.SpringFilter;
 import com.naughtycodes.app.service.impl.CustomUserDetailsService;
 
 @Configuration
 @EnableWebSecurity
-//@Order(2)
 public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
 	@Autowired
@@ -41,88 +30,65 @@ public class OAuth2SecurityConfiguration extends WebSecurityConfigurerAdapter {
 	
 	@Autowired
 	private CustomUserDetailsService customUserDetailsService;
-	
-	@Autowired
-    public void globalUserDetails(AuthenticationManagerBuilder auth) throws Exception {
-		System.out.println("call-->> globalUserDetails");
-//		customUserDetailsService = new CustomUserDetailsService();
-		auth.inMemoryAuthentication().withUser("admin").password("pwd").roles("ADMIN");
-//		auth.userDetailsService(customUserDetailsService);
-		auth.authenticationProvider(preauthAuthProvider());
-		
-				
-    }
-	
-//-----------------------------------------------------------------------------	
-//	//@Qualifier(value="authenticationManagerBean")
-//	@Override
-//	//@Order(2)
-//	protected AuthenticationManager authenticationManager() throws Exception {
-//		final List<AuthenticationProvider> providers = new ArrayList<>(1);
-//		providers.add(preauthAuthProvider());
-//		return new ProviderManager(providers);
-//	}
-	
-	@Bean(name = "siteminderFilter")
-	public RequestHeaderAuthenticationFilter siteminderFilter() throws Exception {
-		RequestHeaderAuthenticationFilter requestHeaderAuthenticationFilter = new RequestHeaderAuthenticationFilter();
-		requestHeaderAuthenticationFilter.setPrincipalRequestHeader("DBA_USER");
-		requestHeaderAuthenticationFilter.setAuthenticationManager(authenticationManager());
-		return requestHeaderAuthenticationFilter;
-	}
- 
-	@Bean(name = "preAuthProvider")
-	PreAuthenticatedAuthenticationProvider preauthAuthProvider() throws Exception {
-		PreAuthenticatedAuthenticationProvider provider = new PreAuthenticatedAuthenticationProvider();
-		provider.setPreAuthenticatedUserDetailsService(userDetailsServiceWrapper());
-		return provider;
-	}
-	
-	@Bean
-	UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> userDetailsServiceWrapper() throws Exception {
-		UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> wrapper = new UserDetailsByNameServiceWrapper<>();
-		wrapper.setUserDetailsService(customUserDetailsService);
-		
-		return wrapper;
-	}
- 
 
-//-----------------------------------------------------------------------------
-	
+//step 01
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-
-//      http.addFilterBefore(new SpringFilter(), BasicAuthenticationFilter.class);
-//      http.authorizeRequests()
-//        	.antMatchers("/**").hasAuthority("ROLE_ADMIN")
-//    	.and().authorizeRequests()
-//    		.anyRequest().denyAll();
       
-http.addFilterAfter(siteminderFilter(), RequestHeaderAuthenticationFilter.class).authorizeRequests().antMatchers("/").permitAll().anyRequest().authenticated().antMatchers("/log").hasAuthority("ROLE_ADMIN");      
+      http.addFilterAfter(siteminderFilter(), RequestHeaderAuthenticationFilter.class)
+      	.authorizeRequests().antMatchers("/")
+      	.permitAll()
+      	.anyRequest()
+      	.authenticated()
+      	.antMatchers("/sso/**").hasAuthority("ROLE_SSO_USER");      
 
   	  http
 		.csrf().disable()
 		.anonymous().disable()
 	  	.authorizeRequests()
 	  	.antMatchers("/oauth/token").permitAll();
-		
-//  	  http.authorizeRequests()
-//		  .antMatchers("/", "/home").permitAll()
-//		  .antMatchers("/admin/**").access("hasRole('ADMIN')")
-//		  .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')")
-//		  .and().formLogin().loginPage("/login")
-//		  .usernameParameter("ssoId").passwordParameter("password")
-//		  .and().exceptionHandling().accessDeniedPage("/Access_Denied");
 
     }
-    
 
+//step 02    
     @Override
     @Bean
     public AuthenticationManager authenticationManagerBean() throws Exception {
         return super.authenticationManagerBean();
     }
 
+//step 03	
+	@Bean(name = "siteminderFilter")
+	public RequestHeaderAuthenticationFilter siteminderFilter() throws Exception {
+		RequestHeaderAuthenticationFilter requestHeaderAuthenticationFilter = new RequestHeaderAuthenticationFilter();
+		requestHeaderAuthenticationFilter.setPrincipalRequestHeader("SSO_USER");
+		requestHeaderAuthenticationFilter.setAuthenticationManager(authenticationManager());
+		return requestHeaderAuthenticationFilter;
+	}
+
+//step 04
+	@Autowired
+    public void globalUserDetails(AuthenticationManagerBuilder auth) throws Exception {
+		auth.inMemoryAuthentication().withUser("admin").password("pwd").roles("OAUTH_USER");
+		auth.authenticationProvider(preauthAuthProvider());
+    }
+
+//-----------------------------------Handling Single Sign On-------------------------------------
+	@Bean(name = "preAuthProvider")
+	PreAuthenticatedAuthenticationProvider preauthAuthProvider() throws Exception {
+		PreAuthenticatedAuthenticationProvider provider = new PreAuthenticatedAuthenticationProvider();
+		provider.setPreAuthenticatedUserDetailsService(userDetailsServiceWrapper());
+		return provider;
+	}
+
+	@Bean
+	UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> userDetailsServiceWrapper() throws Exception {
+		UserDetailsByNameServiceWrapper<PreAuthenticatedAuthenticationToken> wrapper = new UserDetailsByNameServiceWrapper<>();
+		wrapper.setUserDetailsService(customUserDetailsService);
+		return wrapper;
+	}
+
+//-----------------------------------Handling Oauth2--------------------------------------------
 
 	@Bean
 	public TokenStore tokenStore() {
